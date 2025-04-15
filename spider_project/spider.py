@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 import argparse
 import os
-import time
 import requests
 from urllib.parse import urljoin, urlparse
-from urllib.robotparser import RobotFileParser
 from bs4 import BeautifulSoup
 import mimetypes
 import socket
@@ -17,16 +15,13 @@ class Spider:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
         self.download_path = './data/'
-        self.delay = 1  # seconds between requests
-        self.timeout = 10  # seconds for requests timeout
-        self.robots_parser = RobotFileParser()
+        self.timeout = 5  # seconds for requests timeout
 
     def parse_args(self):
         parser = argparse.ArgumentParser(description='Web spider for downloading images')
         parser.add_argument('-r', action='store_true', help='Recursive download')
         parser.add_argument('-l', type=int, default=5, help='Maximum depth level')
         parser.add_argument('-p', type=str, help='Download path')
-        parser.add_argument('--delay', type=float, default=1, help='Delay between requests in seconds')
         parser.add_argument('url', type=str, help='URL to crawl')
         return parser.parse_args()
     
@@ -37,16 +32,6 @@ class Spider:
         except:
             return False
     
-    def check_robots_txt(self, url):
-        parsed = urlparse(url)
-        robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
-        try:
-            self.robots_parser.set_url(robots_url)
-            self.robots_parser.read()
-            return self.robots_parser.can_fetch('*', url)
-        except:
-            return True  # If robots.txt can't be read, assume crawling is allowed
-    
     def normalize_url(self, url):
         parsed = urlparse(url)
         path = parsed.path.rstrip('/')
@@ -54,7 +39,6 @@ class Spider:
     
     def get_page(self, url):
         try:
-            time.sleep(self.delay)
             response = self.session.get(url, timeout=self.timeout)
             response.raise_for_status()
             return response
@@ -111,7 +95,6 @@ class Spider:
             else:
                 # Check by making HEAD request for Content-Type
                 try:
-                    time.sleep(self.delay)
                     head = self.session.head(absolute_url, timeout=self.timeout, allow_redirects=True)
                     if head.status_code == 200:
                         content_type = head.headers.get('Content-Type', '').lower()
@@ -123,8 +106,7 @@ class Spider:
                 images.add(absolute_url)
         
         return list(images)
-    
-    
+
     def download_image(self, img_url):
         try:
             response = self.get_page(img_url)
@@ -180,7 +162,6 @@ class Spider:
     
     def run(self):
         args = self.parse_args()
-        self.delay = args.delay
         
         if not self.is_valid_url(args.url):
             print("Invalid URL provided")
