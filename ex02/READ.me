@@ -1,0 +1,23 @@
+# Generate a key
+$ head -c 32 /dev/urandom | xxd -p -c 32 > key.hex
+
+# Store the key
+$ ./ft_otp -g key.hex
+Key was successfully saved in ft_otp.key
+
+# Generate OTP (will change every 30 seconds)
+$ ./ft_otp -k ft_otp.key
+123456
+$ sleep 30
+$ ./ft_otp -k ft_otp.key
+654321
+
+
+
+
+for oathtool 
+
+oathtool --totp -v $(cat key.hex)
+
+echo "oathtool: $(oathtool --totp $(cat key.hex))"
+echo "ft_otp:   $(./ft_otp -k ft_otp.key)"

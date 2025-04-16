@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+import sys
+import hmac
+import hashlib
+import struct
+import time
+import binascii
+
+KEY_FILE = "ft_otp.key"
+KEY_LENGTH = 64
+DIGITS = 6
+TIME_STEP = 30
+
+def validate_hex_key(key):
+    """Check if key is 64-character hexadecimal"""
+    if len(key) != KEY_LENGTH:
+        return False
+    try:
+        int(key, 16)
+        return True
+    except ValueError:
+        return False
+
+def hotp(key, counter):
+    """Generate HOTP value"""
+    # Convert counter to 8-byte big-endian
+    msg = struct.pack(">Q", counter)
+    
+    # Convert key from hex to bytes
+    k = binascii.unhexlify(key)
+    
+    # Compute HMAC-SHA1
+    hmac_result = hmac.new(k, msg, hashlib.sha1).digest()
+    
+    # Dynamic truncation
+    offset = hmac_result[19] & 0xF
+    binary = (
+        (hmac_result[offset] & 0x7F) << 24
+        | (hmac_result[offset + 1] & 0xFF) << 16
+        | (hmac_result[offset + 2] & 0xFF) << 8
+        | (hmac_result[offset + 3] & 0xFF)
+    )
+    
+    # Generate 6-digit code
+    return str(binary % 10**DIGITS).zfill(DIGITS)
+
+def totp(key):
+    """Generate TOTP value using current time"""
+    counter = int(time.time() // TIME_STEP)
+    return hotp(key, counter)
+
+def save_key():
+    """Handle -g option to save key"""
+    if len(sys.argv) != 3:
+        print("Usage: ft_otp -g <keyfile>")
+        sys.exit(1)
+    
+    try:
+        with open(sys.argv[2], 'r') as f:
+            key = f.read().strip()
+    except FileNotFoundError:
+        print("Error: Key file not found")
+        sys.exit(1)
+    
+    if not validate_hex_key(key):
+        print("Error: Key must be 64 hexadecimal characters")
+        sys.exit(1)
+    
+    with open(KEY_FILE, 'w') as f:
+        f.write(key)
+    
+    print(f"Key was successfully saved in {KEY_FILE}")
+
+def generate_otp():
+    """Handle -k option to generate OTP"""
+    if len(sys.argv) != 3:
+        print("Usage: ft_otp -k <keyfile>")
+        sys.exit(1)
+    
+    try:
+        with open(sys.argv[2], 'r') as f:
+            key = f.read().strip()
+    except FileNotFoundError:
+        print("Error: Key file not found")
+        sys.exit(1)
+    
+    if not validate_hex_key(key):
+        print("Error: Invalid key format")
+        sys.exit(1)
+    
+    print(totp(key))
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage:")
+        print("  ft_otp -g <keyfile>  # Store key")
+        print("  ft_otp -k <keyfile>  # Generate OTP")
+        sys.exit(1)
+    
+    option = sys.argv[1]
+    if option == "-g":
+        save_key()
+    elif option == "-k":
+        generate_otp()
+    else:
+        print(f"Error: Unknown option {option}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
